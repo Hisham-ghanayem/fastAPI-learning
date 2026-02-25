@@ -4,6 +4,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session  #this will help us interact with the datebase
 from pydantic import BaseModel  #This validte the data coming comparing to the entry data, as both should match
 from fastapi import FastAPI, Depends, HTTPException
+from typing import List
+from typing import Optional
+
 
 
 app = FastAPI()
@@ -74,3 +77,37 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+
+class UserUpdate(BaseModel):
+   name: Optional[str] = None
+   email: Optional[str] = None
+
+@app.put("/users/{user_id}", response_model=UserUpdate)
+def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    db_user.name = user.name if user.name is not None else db_user.name
+    db_user.email = user.email if user.email is not None else db_user.email
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+@app.delete("/users/{user_id}", response_model=UserResponse)
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(db_user)
+    db.commit()
+    return db_user
+@app.get("/users/", response_model=List[UserResponse])
+def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    users = db.query(User).offset(skip).limit(limit).all()
+    return users
+@app.get("/users/{user_id}", response_model=UserResponse)
+def read_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
